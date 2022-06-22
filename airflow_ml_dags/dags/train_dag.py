@@ -1,61 +1,58 @@
-from datetime import timedelta
-from pendulum import today
 from airflow import DAG
+from airflow.operators.empty import EmptyOperator
 from airflow.providers.docker.operators.docker import DockerOperator
-from airflow.sensors.filesystem import FileSensor
-from docker.types import Mount
-from airflow.models import Variable
 
-MOUNT_DIR = Variable.get("MOUNT_DIR")
-RAW_DIR = "data/raw"
-PROCESSED_DIR = "data/processed"
-TRANSFORM_DIR = "data/transform"
-SPLIT_DIR = "data/split"
-MODEL_DIR = "data/models"
+from pendulum import today
+from datetime import timedelta
+from airflow.models import Variable
+from docker.types import Mount
 
 default_args = {
     "owner": "airflow",
     "email": ["airflow@example.com"],
     "retries": 1,
-    "retry_delay": timedelta(minutes=1),
+    "retry_delay": timedelta(minutes=5),
 }
 
 with DAG(
-        "train_model",
+        "train_dag",
         default_args=default_args,
-        schedule_interval="@daily",
-        start_date=today('UTC').add(days=-3)
+        schedule_interval="@weekly",
+        start_date=today("UTC").add(days=-5),
 ) as dag:
-    data_sensor = FileSensor(
-        task_id="data_sensor",
-        filepath="/data/raw/data.csv"
-    )
+
+    # start = EmptyOperator(task_id="start_train_model")
 
     preprocess = DockerOperator(
         image="airflow-preprocess",
-        # command="python preprocess.py {{ RAW_DIR }} {{ PROCESSED_DIR }} {{TRANSFORM_DIR}}",
-        task_id="preprocess",
+        task_id="docker-airflow-preprocess",
+        command=["/data/{{ ds }}/generate/", "/data/{{ ds }}/processed/"],
         do_xcom_push=False,
         mount_tmp_dir=False,
-        mounts=[Mount(source=MOUNT_DIR, target="/data", type="bind")]
+        mounts=[Mount(source="/home/julia/git/techno/ML/julia_korpusova/airflow_ml_dags/data/", target="/data",
+                      type='bind')]
     )
 
-    train_val_split = DockerOperator(
+    split = DockerOperator(
         image="airflow-split",
-        # command="python split.py {{ PROCESSED_DIR }} {{ SPLIT_DIR }}",
-        task_id="train_val_split",
+        task_id="docker-airflow-split",
+        command=["/data/{{ ds }}/processed/", "/data/{{ ds }}/split/"],
         do_xcom_push=False,
         mount_tmp_dir=False,
-        mounts=[Mount(source=MOUNT_DIR, target="/data", type="bind")]
+        mounts=[Mount(source="/home/julia/git/techno/ML/julia_korpusova/airflow_ml_dags/data/", target="/data",
+                      type='bind')]
     )
 
-    train_model = DockerOperator(
+    train = DockerOperator(
         image="airflow-model-train",
-        # command="python train_model.py {{ SPLIT_DIR }} {{ MODEL_DIR }}",
-        task_id="train_model",
+        task_id="docker-airflow-train",
+        command=["/data/{{ ds }}/split/", "/data/{{ ds }}/models/"],
         do_xcom_push=False,
         mount_tmp_dir=False,
-        mounts=[Mount(source=MOUNT_DIR, target="/data", type="bind")]
+        mounts=[Mount(source="/home/julia/git/techno/ML/julia_korpusova/airflow_ml_dags/data/", target="/data",
+                      type='bind')]
     )
 
-    data_sensor >> preprocess >> train_val_split >> train_model
+    finish = EmptyOperator(task_id="finish_train_model")
+
+    preprocess >> split >> train >> finish

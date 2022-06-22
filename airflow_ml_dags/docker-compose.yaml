@@ -11,6 +11,7 @@ x-environment:
   - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=True
   - AIRFLOW__CORE__FERNET_KEY=${FERNET_KEY}
   - AIRFLOW_VAR_MOUNT_DIR=${MOUNT_DIR}
+  - AIRFLOW_CONN_MY_CONN=fs://admin:admin@my-host:8080/my-schema?path=/opt/airflow/data
 
 x-airflow-image: &airflow_image apache/airflow:2.3.0-python3.8
 # ====================================== /AIRFLOW ENVIRONMENT VARIABLES ======================================
@@ -77,6 +78,16 @@ services:
       context: images/airflow-ml-base
     image: airflow-ml-base
     restart: "no"
+    depends_on:
+      - init
+
+  download:
+    build:
+      context: images/airflow-download
+    image: airflow-download
+    restart: "no"
+    depends_on:
+      - ml_base
 
   data_generator:
     build:
@@ -84,40 +95,41 @@ services:
     image: airflow-generate
     restart: "no"
     depends_on:
-      - ml_base
+      - download
 
-  preprocessor:
+  preprocess:
     build:
       context: images/airflow-preprocess
     image: airflow-preprocess
     restart: "no"
     depends_on:
-      - ml_base
+      - download
       - data_generator
 
-#  train_val_splitter:
-#    build:
-#      context: images/airflow-split
-#    image: airflow-split
-#    restart: "no"
-#    depends_on:
-#      - ml_base
-#
-#  model_trainer:
-#    build:
-#      context: images/airflow-model-train
-#    image: airflow-model-train
-#    restart: "no"
-#    depends_on:
-#      - ml_base
-#
-#  predictor:
-#    build:
-#      context: images/airflow-predict
-#    image: airflow-predict
-#    restart: "no"
-#    depends_on:
-#      - ml_base
+  split:
+    build:
+      context: images/airflow-split
+    image: airflow-split
+    restart: "no"
+    depends_on:
+      - preprocess
+
+  model_trainer:
+    build:
+      context: images/airflow-model-train
+    image: airflow-model-train
+    restart: "no"
+    depends_on:
+      - split
+
+  predictor:
+    build:
+      context: images/airflow-predict
+    image: airflow-predict
+    restart: "no"
+    depends_on:
+      - ml_base
+      - model_trainer
 
 volumes:
   logs:

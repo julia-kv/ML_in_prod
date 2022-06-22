@@ -2,4 +2,4 @@ FROM airflow-ml-base:latest
 
 COPY model_predict.py /model_predict.py
 
-ENTRYPOINT ["python", "model_predict.py", "data/raw", "data/predictions", "data/transform", "data/models"]
+ENTRYPOINT ["python", "model_predict.py"]

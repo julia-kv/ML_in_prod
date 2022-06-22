@@ -8,40 +8,19 @@ from sklearn.utils import shuffle
 import logging
 
 
-logger = logging.getLogger("Generate")
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-logger.addHandler(handler)
-
-
-def make_data():
-    num = randint(50, 568)
-
-    data, target = load_breast_cancer(return_X_y=True, as_frame=True)
-    daff = pd.concat([data, target], axis=1)
-    df = shuffle(daff)
-    df.reset_index(inplace=True, drop=True)
-    return df
-
-
 @click.command("generate")
-@click.argument("output-path", required=True)
-def generate_data(output_path: str) -> None:
-    logger.warning(output_path)
-    data = make_data()
+@click.argument("input-dir")
+@click.argument("output-dir")
+def generate_data(input_dir: str, output_dir: str):
+    data = pd.read_csv(os.path.join(input_dir, "data.csv"), index_col=False)
+    target = pd.read_csv(os.path.join(input_dir, "target.csv"), index_col=False)
 
-    parent_path = pathlib.Path(__file__).absolute().parent.parent.parent
-    logger.warning(str(__file__))
-    full_output_path = parent_path.joinpath(str(output_path))
+    new_target = target["target"]
+    data.reset_index(inplace=True, drop=True)
+    os.makedirs(output_dir, exist_ok=True)
 
-    os.makedirs(full_output_path, exist_ok=True)
-
-    data.to_csv(full_output_path.joinpath("data.csv"))
-    logger.info(f"Generate data in {full_output_path!r}")
-
-    temp_df = pd.read_csv(full_output_path.joinpath("data.csv"))
-    logger.info(f"Files read from a {full_output_path.joinpath('data.csv')} directory into shape {temp_df.shape}")
+    data.to_csv(os.path.join(output_dir, "data.csv"))
+    new_target.to_csv(os.path.join(output_dir, "target.csv"))
 
 
 if __name__ == '__main__':
