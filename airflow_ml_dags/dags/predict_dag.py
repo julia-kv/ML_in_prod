@@ -20,7 +20,6 @@ with DAG(
         schedule_interval="@weekly",
         start_date=today("UTC").add(days=-3),
 ) as dag:
-    start = EmptyOperator(task_id="start_predict")
 
     predict = DockerOperator(
         image="airflow-predict",
@@ -35,4 +34,4 @@ with DAG(
 
     finish = EmptyOperator(task_id="finish_predict")
 
-    start >> predict >> finish
+    predict >> finish
